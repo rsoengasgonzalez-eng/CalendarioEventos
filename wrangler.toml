@@ -5,4 +5,4 @@ compatibility_date = "2026-11-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "planes-con-alma"
-database_id = "REEMPLAZAR_CON_TU_DATABASE_ID"
+database_id = "0e9dc589-c328-416a-9c72-339168b851c6"
