@@ -1,6 +1,6 @@
 # Planes con Alma — Cloudflare Workers
 
-PWA para organizar planes de un grupo de amigos. Esta versión corrige el despliegue en Cloudflare Workers para que la raíz y las rutas de la aplicación sirvan la interfaz web en lugar de devolver `{"error":"Ruta no encontrada"}`.
+PWA para organizar planes de un grupo de amigos. La aplicación se entrega completamente vacía: sin planes, personas, asistentes, comentarios ni votaciones precargadas. Cada persona se incorpora cuando se apunta por primera vez e indica su alias. Esta versión también configura Cloudflare Workers para servir correctamente la web y sus rutas.
 
 ## Corrección aplicada
 
@@ -126,3 +126,14 @@ Si D1 no está enlazado, `/api/plans` responde con un `503` descriptivo en vez d
 - Perfil por alias.
 - PWA instalable y funcionamiento offline.
 - Diseño móvil y de escritorio.
+
+## Estado inicial y alta de personas
+
+- El primer despliegue comienza con `plans: []` y `polls: []`.
+- No contiene asistentes, miembros, comentarios ni estadísticas ficticias.
+- Crear un plan no apunta automáticamente al administrador.
+- El primer clic en **Me apunto** solicita un alias.
+- Ese alias se guarda en el perfil del navegador y se añade al plan.
+- Los miembros activos y las participaciones se calculan únicamente a partir de personas que realmente se hayan apuntado.
+- **Eliminar todos los planes** deja de nuevo la aplicación completamente vacía.
+- Se utiliza una nueva clave de almacenamiento y se eliminan las claves antiguas para que un navegador que hubiera abierto la versión de demostración no conserve sus datos de ejemplo.
