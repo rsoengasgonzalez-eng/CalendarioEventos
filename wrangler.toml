@@ -12,8 +12,7 @@ binding = "ASSETS"
 not_found_handling = "single-page-application"
 run_worker_first = [ "/api/*" ]
 
-# Para activar D1, crea la base de datos y añade aquí el bloque generado:
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "planes-con-alma"
-# database_id = "TU_DATABASE_ID_REAL"
+# D1 debe enlazarse con el binding DB antes de desplegar.
+# Ejecuta `npm run configure:d1` para localizar automáticamente la base
+# `planes-con-alma` de la cuenta autenticada y escribir aquí su database_id.
+# Si la base tiene otro nombre: npm run configure:d1 -- nombre-de-la-base

@@ -1,31 +1,150 @@
-# Planes con Alma — Cloudflare Workers
+# Planes con Alma — Cloudflare Workers + D1
 
-PWA para organizar planes de un grupo de amigos. La aplicación se entrega completamente vacía: sin planes, personas, asistentes, comentarios ni votaciones precargadas. Cada persona se incorpora cuando se apunta por primera vez e indica su alias. Esta versión también configura Cloudflare Workers para servir correctamente la web y sus rutas.
+Aplicación PWA para crear planes y permitir que las personas se apunten. La aplicación empieza vacía y utiliza **Cloudflare D1 como fuente de verdad** para planes, personas, asistentes y comentarios.
 
-## Corrección aplicada
+## Qué se ha corregido
 
-Cloudflare Workers ahora publica `public/` mediante **Static Assets**:
+- Crear un plan ejecuta `POST /api/plans` e inserta una fila en `app_plans`.
+- Tras crear o modificar datos, el cliente vuelve a consultar `GET /api/bootstrap` y actualiza la pantalla inmediatamente.
+- Los planes ya no dependen de `localStorage`; solo el alias personal del dispositivo se guarda localmente.
+- Apuntarse crea o reutiliza una persona en `app_people` y registra la asistencia en `app_attendees`.
+- La lista de espera también se guarda en `app_attendees`, con estado `waiting`.
+- Los comentarios se guardan en `app_comments`.
+- Editar y eliminar modifican D1.
+- El Service Worker **nunca almacena `/api/*` en caché**, evitando que aparezcan agendas antiguas o vacías después de guardar.
+- Un segundo teléfono o navegador consulta las mismas tablas y ve los cambios persistidos.
 
-```toml
-[assets]
-directory = "./public"
-binding = "ASSETS"
-not_found_handling = "single-page-application"
-run_worker_first = [ "/api/*" ]
+## Tablas D1
+
+```text
+app_plans       planes y sus datos
+app_people      alias de personas reales
+app_attendees   relación persona-plan y estado confirmed/waiting
+app_comments    comentarios asociados a persona y plan
 ```
 
-Esto produce el siguiente comportamiento:
+El Worker ejecuta `CREATE TABLE IF NOT EXISTS` al usar la API. `schema.sql` contiene el mismo esquema para inicialización explícita.
 
-| URL | Resultado |
-|---|---|
-| `/` | Carga `public/index.html` |
-| `/app.js`, `/styles.css`, `/images/*` | Sirve el recurso estático |
-| `/plan/42`, `/calendar`, `/profile` | Devuelve `index.html` y la SPA resuelve la ruta |
-| `/api/health` | Ejecuta el Worker |
-| `/api/plans` | Ejecuta el Worker y utiliza D1 si está configurado |
-| `/api/ruta-inexistente` | Devuelve un 404 JSON de API |
+## Configurar la base D1 ya creada
 
-El código cliente también reconoce enlaces directos con ruta limpia (`/plan/42`) además de las rutas con hash (`/#plan/42`).
+El Worker espera un binding llamado exactamente `DB`.
+
+### Configuración automática recomendada
+
+Autentícate y deja que el proyecto encuentre por nombre la base `planes-con-alma`:
+
+```bash
+npx wrangler login
+npm run configure:d1
+```
+
+El script consulta las bases de la cuenta, encuentra su UUID y añade a `wrangler.toml`:
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "planes-con-alma"
+database_id = "UUID_REAL_DE_CLOUDFLARE"
+```
+
+Si la base creada tiene otro nombre:
+
+```bash
+npm run configure:d1 -- nombre-real-de-la-base
+```
+
+También se puede copiar manualmente el UUID desde **Cloudflare → Workers & Pages → D1**.
+
+## Inicializar y desplegar
+
+Para la base `planes-con-alma`:
+
+```bash
+npm run deploy:d1
+```
+
+Equivale a:
+
+```bash
+npm run configure:d1
+npx wrangler d1 execute planes-con-alma --remote --file=schema.sql
+npx wrangler deploy
+```
+
+Si la base tiene otro nombre, ejecuta:
+
+```bash
+npm run configure:d1 -- nombre-real-de-la-base
+npx wrangler d1 execute nombre-real-de-la-base --remote --file=schema.sql
+npx wrangler deploy
+```
+
+## Comprobar el despliegue
+
+```bash
+curl https://calendarioeventos.rsoengasgonzalez.workers.dev/api/health
+```
+
+Debe responder:
+
+```json
+{
+  "ok": true,
+  "service": "planes-con-alma",
+  "staticAssets": true,
+  "database": true
+}
+```
+
+Consulta los datos compartidos:
+
+```bash
+curl https://calendarioeventos.rsoengasgonzalez.workers.dev/api/bootstrap
+```
+
+Una instalación vacía devuelve:
+
+```json
+{"plans":[],"peopleCount":0}
+```
+
+Después de crear un plan, debe aparecer dentro de `plans`.
+
+## API
+
+| Método | Ruta | Operación D1 |
+|---|---|---|
+| `GET` | `/api/health` | Comprueba el binding `DB` |
+| `GET` | `/api/bootstrap` | Lee planes, asistentes y comentarios |
+| `POST` | `/api/plans` | Inserta un plan |
+| `PUT` | `/api/plans/:id` | Actualiza un plan |
+| `DELETE` | `/api/plans/:id` | Elimina plan, asistentes y comentarios |
+| `POST` | `/api/plans/:id/attendance` | Apunta/cancela una persona |
+| `POST` | `/api/plans/:id/comments` | Inserta un comentario |
+| `PUT` | `/api/people/rename` | Cambia el alias de una persona |
+
+## Rutas web
+
+Workers Static Assets publica `public/` y mantiene el fallback SPA:
+
+- `/` carga la aplicación.
+- `/plan/42`, `/calendar` y `/profile` cargan `index.html`.
+- `/api/*` pasa primero por `worker/index.js`.
+
+## Desarrollo local
+
+La UI estática puede abrirse con:
+
+```bash
+npm run dev
+```
+
+Para probar la API D1 local:
+
+```bash
+npm run configure:d1
+npx wrangler dev
+```
 
 ## Estructura
 
@@ -35,105 +154,12 @@ planes-con-alma/
 │   ├── index.html
 │   ├── app.js
 │   ├── styles.css
-│   ├── manifest.webmanifest
 │   ├── sw.js
-│   ├── icon.svg
-│   ├── .assetsignore
 │   └── images/
-├── worker/
-│   └── index.js
+├── worker/index.js
+├── scripts/configure-d1.mjs
 ├── schema.sql
 ├── wrangler.toml
 ├── package.json
 └── README.md
 ```
-
-## Probar localmente
-
-La interfaz no necesita dependencias:
-
-```bash
-npm run dev
-```
-
-Abre `http://localhost:4173`.
-
-Para emular exactamente el enrutado de Workers se recomienda usar Wrangler:
-
-```bash
-npx wrangler dev
-```
-
-Comprueba:
-
-- `http://localhost:8787/`
-- `http://localhost:8787/plan/42`
-- `http://localhost:8787/api/health`
-
-## Desplegar
-
-Desde la raíz del proyecto:
-
-```bash
-npx wrangler deploy
-```
-
-El nombre configurado es `calendarioeventos`, por lo que se actualizará el Worker con ese nombre en la cuenta autenticada.
-
-Tras desplegar, verifica:
-
-```bash
-curl -I https://calendarioeventos.rsoengasgonzalez.workers.dev/
-curl https://calendarioeventos.rsoengasgonzalez.workers.dev/api/health
-```
-
-La primera respuesta debe tener `content-type: text/html`; la segunda debe devolver JSON con `"ok": true`.
-
-## D1 opcional
-
-La aplicación visual funciona con almacenamiento local aunque D1 no esté configurado. Para datos compartidos entre dispositivos:
-
-```bash
-npx wrangler d1 create planes-con-alma
-```
-
-Añade a `wrangler.toml` el bloque que devuelve Cloudflare:
-
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "planes-con-alma"
-database_id = "ID_REAL_GENERADO_POR_CLOUDFLARE"
-```
-
-Inicializa y despliega:
-
-```bash
-npx wrangler d1 execute planes-con-alma --remote --file=schema.sql
-npx wrangler deploy
-```
-
-Si D1 no está enlazado, `/api/plans` responde con un `503` descriptivo en vez de provocar un error interno; la interfaz continúa funcionando.
-
-## Funcionalidades
-
-- Inicio, búsqueda y categorías.
-- Planes individuales, aforo y lista de espera.
-- Creación, edición y eliminación.
-- Comentarios y votaciones.
-- Calendario y exportación `.ics`.
-- Compartir en WhatsApp.
-- Perfil por alias.
-- PWA instalable y funcionamiento offline.
-- Diseño móvil y de escritorio.
-
-## Estado inicial y alta de personas
-
-- El primer despliegue comienza con `plans: []` y `polls: []`.
-- No contiene asistentes, miembros, comentarios ni estadísticas ficticias.
-- Crear un plan no apunta automáticamente al administrador.
-- El primer clic en **Me apunto** solicita un alias.
-- Ese alias se guarda en el perfil del navegador y se añade al plan.
-- Los miembros activos y las participaciones se calculan únicamente a partir de personas que realmente se hayan apuntado.
-- **Eliminar todos los planes** deja de nuevo la aplicación completamente vacía.
-- Se utiliza una nueva clave de almacenamiento y se eliminan las claves antiguas para que un navegador que hubiera abierto la versión de demostración no conserve sus datos de ejemplo.

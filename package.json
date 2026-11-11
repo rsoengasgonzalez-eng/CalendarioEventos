@@ -1,13 +1,15 @@
 {
   "name": "planes-con-alma",
-  "version": "1.3.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "description": "PWA para organizar planes, preparada para Cloudflare Workers Static Assets",
   "scripts": {
     "dev": "python3 -m http.server 4173 --directory public",
     "start": "python3 -m http.server 4173 --directory public",
-    "check": "node --check public/app.js && node --check public/sw.js && node --check worker/index.js",
-    "deploy": "npx wrangler deploy"
+    "check": "node --check public/app.js && node --check public/sw.js && node --check worker/index.js && node --check scripts/configure-d1.mjs",
+    "configure:d1": "node scripts/configure-d1.mjs",
+    "deploy": "npx wrangler deploy",
+    "deploy:d1": "npm run configure:d1 && npx wrangler d1 execute planes-con-alma --remote --file=schema.sql && npx wrangler deploy"
   }
 }
