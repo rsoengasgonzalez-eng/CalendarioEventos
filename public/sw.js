@@ -1,4 +1,4 @@
-const CACHE='planes-con-alma-v7-d1-live';
+const CACHE='planes-con-alma-v8-multiple-calendar';
 const ASSETS=['/','/index.html','/styles.css','/app.js','/manifest.webmanifest','/icon.svg','/images/hero_xmadrid.jpg','/images/hero_dinner.jpg','/images/hero_rooftop.jpg','/images/hero_escape.jpg'];
 
 self.addEventListener('install',event=>

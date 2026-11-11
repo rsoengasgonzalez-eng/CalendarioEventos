@@ -163,3 +163,13 @@ planes-con-alma/
 ├── package.json
 └── README.md
 ```
+
+## Múltiples planes y creación desde Calendario (v2.1)
+
+- Cada apertura de `#create` utiliza siempre `POST /api/plans` y genera un registro nuevo con un ID D1 independiente.
+- La edición utiliza una ruta separada, `#edit/:id`, y solo esa ruta ejecuta `PUT /api/plans/:id`.
+- Pasar desde edición al botón **+ Crear** abre un formulario vacío; nunca reutiliza el ID editado.
+- En Calendario, cada día es un botón de creación. Al pulsarlo se abre `#create/AAAA-MM-DD` con la fecha preseleccionada.
+- Calendario incluye botones visibles **Crear plan** y **Añadir plan**.
+- Después de cada `POST` o `PUT`, la aplicación consulta de nuevo `/api/bootstrap`; el estado actualizado queda disponible inmediatamente en Inicio, Explorar y Calendario.
+- Varios planes pueden compartir la misma fecha. El calendario muestra un punto por plan y la agenda lateral los enumera de forma independiente.
