@@ -1,25 +1,56 @@
-# Planes con Alma
+# Planes con Alma — Cloudflare Workers
 
-PWA móvil para organizar planes de un grupo de amigos, inspirada en el flujo de `amistadcanasytapas.site`, pero con una experiencia visual y funcional más completa.
+PWA para organizar planes de un grupo de amigos. Esta versión corrige el despliegue en Cloudflare Workers para que la raíz y las rutas de la aplicación sirvan la interfaz web en lugar de devolver `{"error":"Ruta no encontrada"}`.
 
-## Incluye
+## Corrección aplicada
 
-- Inicio con próximo plan, buscador, categorías y estadísticas.
-- Página pública por plan (`#plan/42`) preparada para compartir.
-- Inscripción, cancelación, aforo y promoción automática desde lista de espera.
-- Creación, edición y eliminación de planes.
-- Comentarios del grupo.
-- Calendario mensual y exportación `.ics` individual o mensual.
-- Enlaces a Google Maps y texto optimizado para WhatsApp/Web Share.
-- Votaciones con cambio de voto y resultados inmediatos.
-- Perfil sencillo por alias, sin correo ni contraseña.
-- Persistencia local con `localStorage`, funcionamiento offline y PWA instalable.
-- Backend opcional para Cloudflare Workers + D1 (`worker/`, `schema.sql`, `wrangler.toml`).
-- Diseño responsive y accesible, con cuatro fotografías originales incluidas localmente.
+Cloudflare Workers ahora publica `public/` mediante **Static Assets**:
 
-## Ejecutar en local
+```toml
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = [ "/api/*" ]
+```
 
-No necesita instalar dependencias:
+Esto produce el siguiente comportamiento:
+
+| URL | Resultado |
+|---|---|
+| `/` | Carga `public/index.html` |
+| `/app.js`, `/styles.css`, `/images/*` | Sirve el recurso estático |
+| `/plan/42`, `/calendar`, `/profile` | Devuelve `index.html` y la SPA resuelve la ruta |
+| `/api/health` | Ejecuta el Worker |
+| `/api/plans` | Ejecuta el Worker y utiliza D1 si está configurado |
+| `/api/ruta-inexistente` | Devuelve un 404 JSON de API |
+
+El código cliente también reconoce enlaces directos con ruta limpia (`/plan/42`) además de las rutas con hash (`/#plan/42`).
+
+## Estructura
+
+```text
+planes-con-alma/
+├── public/
+│   ├── index.html
+│   ├── app.js
+│   ├── styles.css
+│   ├── manifest.webmanifest
+│   ├── sw.js
+│   ├── icon.svg
+│   ├── .assetsignore
+│   └── images/
+├── worker/
+│   └── index.js
+├── schema.sql
+├── wrangler.toml
+├── package.json
+└── README.md
+```
+
+## Probar localmente
+
+La interfaz no necesita dependencias:
 
 ```bash
 npm run dev
@@ -27,56 +58,71 @@ npm run dev
 
 Abre `http://localhost:4173`.
 
-## Publicar en Cloudflare Pages
+Para emular exactamente el enrutado de Workers se recomienda usar Wrangler:
 
-1. Sube esta carpeta a un repositorio de GitHub.
-2. En Cloudflare Pages, conecta el repositorio.
-3. Configura:
-   - **Framework preset:** None
-   - **Build command:** vacío
-   - **Output directory:** `/`
-4. Publica. Los archivos `_headers` y `_redirects` ya están incluidos.
+```bash
+npx wrangler dev
+```
 
-## Activar el backend D1 opcional
+Comprueba:
 
-La versión entregada funciona de forma autónoma en el navegador para poder probar todos los flujos sin configurar cuentas. Para persistencia compartida entre usuarios:
+- `http://localhost:8787/`
+- `http://localhost:8787/plan/42`
+- `http://localhost:8787/api/health`
+
+## Desplegar
+
+Desde la raíz del proyecto:
+
+```bash
+npx wrangler deploy
+```
+
+El nombre configurado es `calendarioeventos`, por lo que se actualizará el Worker con ese nombre en la cuenta autenticada.
+
+Tras desplegar, verifica:
+
+```bash
+curl -I https://calendarioeventos.rsoengasgonzalez.workers.dev/
+curl https://calendarioeventos.rsoengasgonzalez.workers.dev/api/health
+```
+
+La primera respuesta debe tener `content-type: text/html`; la segunda debe devolver JSON con `"ok": true`.
+
+## D1 opcional
+
+La aplicación visual funciona con almacenamiento local aunque D1 no esté configurado. Para datos compartidos entre dispositivos:
 
 ```bash
 npx wrangler d1 create planes-con-alma
-# Copia el database_id generado en wrangler.toml
+```
+
+Añade a `wrangler.toml` el bloque que devuelve Cloudflare:
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "planes-con-alma"
+database_id = "ID_REAL_GENERADO_POR_CLOUDFLARE"
+```
+
+Inicializa y despliega:
+
+```bash
 npx wrangler d1 execute planes-con-alma --remote --file=schema.sql
 npx wrangler deploy
 ```
 
-El Worker incluye las rutas base:
+Si D1 no está enlazado, `/api/plans` responde con un `503` descriptivo en vez de provocar un error interno; la interfaz continúa funcionando.
 
-- `GET /api/health`
-- `GET /api/plans`
-- `POST /api/plans`
-- `GET /api/plans/:id`
+## Funcionalidades
 
-## Personalización rápida
-
-- Colores y tipografías: variables al inicio de `styles.css`.
-- Datos iniciales: objeto `seed` en `app.js`.
-- Imágenes: `public/images/`.
-- Nombre y metadatos sociales: `index.html` y `manifest.webmanifest`.
-
-## Estructura
-
-```text
-planes-con-alma/
-├── index.html
-├── app.js
-├── styles.css
-├── manifest.webmanifest
-├── sw.js
-├── icon.svg
-├── public/images/
-├── worker/index.js
-├── schema.sql
-├── wrangler.toml
-├── _headers
-├── _redirects
-└── README.md
-```
+- Inicio, búsqueda y categorías.
+- Planes individuales, aforo y lista de espera.
+- Creación, edición y eliminación.
+- Comentarios y votaciones.
+- Calendario y exportación `.ics`.
+- Compartir en WhatsApp.
+- Perfil por alias.
+- PWA instalable y funcionamiento offline.
+- Diseño móvil y de escritorio.

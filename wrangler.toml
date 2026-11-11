@@ -1,8 +1,19 @@
-name = "planes-con-alma-api"
+name = "calendarioeventos"
 main = "worker/index.js"
-compatibility_date = "2026-11-01"
+compatibility_date = "2026-11-11"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "planes-con-alma"
-database_id = "0e9dc589-c328-416a-9c72-339168b851c6"
+# Cloudflare publica el contenido de public/ en el mismo dominio del Worker.
+# Las rutas /api/* se ejecutan primero en worker/index.js.
+# Cualquier otra ruta inexistente devuelve public/index.html para conservar
+# la navegación de la SPA (por ejemplo /plan/42, /calendar o /profile).
+[assets]
+directory = "./public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = [ "/api/*" ]
+
+# Para activar D1, crea la base de datos y añade aquí el bloque generado:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "planes-con-alma"
+# database_id = "TU_DATABASE_ID_REAL"
